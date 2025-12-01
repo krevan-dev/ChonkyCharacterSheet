@@ -257,6 +257,39 @@ SlashCmdList["CHONKYCHARACTERSHEET"] = function(msg)
         return
     end
 
+    if msg == "eventstats reset" then
+        wipe(CCS.EventStats)
+        print("Event profiling stats reset.")
+        return
+    end
+
+    if msg == "eventstats on" then
+        CCS.EventStatsEnabled = true
+        print("EventStats tracking ENABLED")
+        return
+    end
+
+    if msg == "eventstats off" then
+        CCS.EventStatsEnabled = false
+        print("EventStats tracking DISABLED")
+        return
+    end
+    if msg == "eventstats summary" then
+        CCS:PrintEventStats()
+        return
+    end
+
+    if msg == "eventstats" then
+        print("Event profiling results:")
+        for event, stats in pairs(CCS.EventStats) do
+            local avg = stats.avgInterval and string.format("%.1f ms", stats.avgInterval) or "n/a"
+            local min = stats.minInterval and string.format("%.1f ms", stats.minInterval) or "n/a"
+            local max = stats.maxInterval and string.format("%.1f ms", stats.maxInterval) or "n/a"
+            print(event, "count:", stats.count, "avg:", avg, "min:", min, "max:", max)
+        end
+        return
+    end
+    
     if msg == "testevents" then
         print("|cff00ff00Running Events Test...|r")
 

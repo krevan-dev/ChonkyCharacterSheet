@@ -76,283 +76,331 @@ function CCS:FireEvent(event, ...)
     end
 end
 
+local function WrapHandler(eventName, handlerFn)
+    return function(...)
+        if CCS.EventStatsEnabled then
+            local now = debugprofilestop()
+            local stats = CCS.EventStats[eventName]
+            if not stats then
+                stats = {count=0, lastTime=nil, avgInterval=nil, minInterval=nil, maxInterval=nil}
+                CCS.EventStats[eventName] = stats
+            end
+            stats.count = stats.count + 1
+            if stats.lastTime then
+                local interval = now - stats.lastTime
+                if stats.avgInterval then
+                    stats.avgInterval = ((stats.avgInterval * (stats.count-1)) + interval) / stats.count
+                else
+                    stats.avgInterval = interval
+                end
+                stats.minInterval = not stats.minInterval and interval or math.min(stats.minInterval, interval)
+                stats.maxInterval = not stats.maxInterval and interval or math.max(stats.maxInterval, interval)
+            end
+            stats.lastTime = now
+        end
+        return handlerFn(...)
+    end
+end
+
+function CCS:PrintEventStats()
+    print("=== CCS Event Stats ===")
+    for eventName, stats in pairs(CCS.EventStats) do
+        print(string.format(
+            "Event: %s | Count=%d | AvgInt=%.2fms | MinInt=%.2fms | MaxInt=%.2fms",
+            eventName,
+            stats.count,
+            stats.avgInterval or 0,
+            stats.minInterval or 0,
+            stats.maxInterval or 0
+        ))
+
+        -- Handler-level breakdown
+        if stats.handlers then
+            for hkey, hstats in pairs(stats.handlers) do
+                print(string.format(
+                    "   Handler: %s | Count=%d | AvgInt=%.2fms | MinInt=%.2fms | MaxInt=%.2fms",
+                    hkey,
+                    hstats.count,
+                    hstats.avgInterval or 0,
+                    hstats.minInterval or 0,
+                    hstats.maxInterval or 0
+                ))
+            end
+        end
+    end
+    print("=== End Stats ===")
+end
+
 --------------------------------------------------------
 -- EVENT HANDLER MAPPING (version-aware declarations)
 --------------------------------------------------------
 local eventHandlers = {
     -- Blizzard events
     ["ACTIVE_TALENT_GROUP_CHANGED"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
-    },
-    
-    ["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("ACTIVE_TALENT_GROUP_CHANGED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
-    ["ADDON_LOADED"] = function(event, loadedAddon)
+    ["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = {
+        { fn = WrapHandler("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("ACTIVE_PLAYER_SPECIALIZATION_CHANGED", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
+    },
+
+    ["ADDON_LOADED"] = WrapHandler("ADDON_LOADED", function(event, loadedAddon)
         if loadedAddon ~= addonName then return end
         CCS:InitSavedVariables()
         CCS:LoadOptions()
-    end,
+    end),
 
     ["AVOIDANCE_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("AVOIDANCE_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
-    ["BAG_UPDATE"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+    ["ITEM_PUSH"] = {
+        { fn = WrapHandler("ITEM_PUSH", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["BOSS_KILL"] = {
-        { fn = CCS.RaidProgressEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("BOSS_KILL", CCS.RaidProgressEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["CHALLENGE_MODE_COMPLETED"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CHALLENGE_MODE_COMPLETED", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["CHALLENGE_MODE_MAPS_UPDATE"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CHALLENGE_MODE_MAPS_UPDATE", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["CHARACTER_ITEM_FIXUP_NOTIFICATION"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CHARACTER_ITEM_FIXUP_NOTIFICATION", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["CHARACTER_POINTS_CHANGED"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CHARACTER_POINTS_CHANGED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["COMBAT_RATING_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("COMBAT_RATING_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["GOSSIP_CLOSED"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("GOSSIP_CLOSED", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["INSPECT_READY"] = {
-        { fn = CCS.InspectSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MOPCharacterSheetEventHandler, versions = { CCS.MOP } },
-
+        { fn = WrapHandler("INSPECT_READY", CCS.InspectSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("INSPECT_READY", CCS.MOPCharacterSheetEventHandler), versions = { CCS.MOP } },
     },
 
     ["INSTANCE_ENCOUNTER_OBJECTIVE_UPDATE"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("INSTANCE_ENCOUNTER_OBJECTIVE_UPDATE", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["ITEM_CHANGED"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("ITEM_CHANGED", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["LIFESTEAL_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("LIFESTEAL_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["LOOT_READY"] = {
-        { fn = CCS.RaidProgressEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("LOOT_READY", CCS.RaidProgressEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["MASTERY_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("MASTERY_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["MYTHIC_PLUS_CURRENT_AFFIX_UPDATE"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["MYTHIC_PLUS_NEW_WEEKLY_RECORD"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("MYTHIC_PLUS_NEW_WEEKLY_RECORD", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_AVG_ITEM_LEVEL_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_AVG_ITEM_LEVEL_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_ENTERING_WORLD"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MOPCharacterSheetEventHandler, versions = { CCS.MOP } },
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_ENTERING_WORLD", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_ENTERING_WORLD", CCS.MOPCharacterSheetEventHandler), versions = { CCS.MOP } },
+        { fn = WrapHandler("PLAYER_ENTERING_WORLD", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_ENTERING_WORLD", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_EQUIPMENT_CHANGED"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MOPCharacterSheetEventHandler, versions = { CCS.MOP } },
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_EQUIPMENT_CHANGED", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_EQUIPMENT_CHANGED", CCS.MOPCharacterSheetEventHandler), versions = { CCS.MOP } },
+        { fn = WrapHandler("PLAYER_EQUIPMENT_CHANGED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_LEAVE_COMBAT"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.RaidProgressEventHandler, versions = { CCS.RETAIL } },
+        --{ fn = WrapHandler("PLAYER_LEAVE_COMBAT", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_LEAVE_COMBAT", CCS.RaidProgressEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_LEVEL_UP"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.RaidProgressEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_LEVEL_UP", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_LEVEL_UP", CCS.RaidProgressEventHandler), versions = { CCS.RETAIL } },
     },
 
-    ["PLAYER_LOGIN"] = function()
-        -- Apply saved options
+    ["PLAYER_LOGIN"] = WrapHandler("PLAYER_LOGIN", function()
         for _, def in ipairs(ns.optionDefs or {}) do
             if def.key then
                 CCS:UpdateOption(def, CCS.CurrentProfile[def.key])
             end
         end
-
-        -- Core initialization
         CCS:Initialize()
         CCS:LoadBlizzardAddOns()
-
         C_Timer.After(0.1, function()
             CCS:PrimeFontsAndTextures()
             CCS.fontname = CCS:GetDefaultFontForLocale() or CCS:GetOptionValue("default_font") or "Fonts\\FRIZQT__.TTF"
             CCS.textoutline = "OUTLINE"
         end)
-
         CCS.fontname = CCS:GetDefaultFontForLocale() or CCS:GetOptionValue("default_font") or "Fonts\\FRIZQT__.TTF"
         CCS.textoutline = CCS:GetOptionValue("textoutline") or ""
-
-        -- Delayed Initialize all registered modules automatically
         for _, module in pairs(CCS.Modules) do
             if type(module.Initialize) == "function" then
-                C_Timer.After(0.15, function() module:Initialize() end)
+                C_Timer.After(0.1, function() module:Initialize() end)
             end
         end
-    end,
+    end),
 
     ["PLAYER_LOOT_SPEC_UPDATED"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_LOOT_SPEC_UPDATED", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
     },
 
-    ["PLAYER_REGEN_ENABLED"] = function()
+    ["PLAYER_REGEN_ENABLED"] = WrapHandler("PLAYER_REGEN_ENABLED", function()
         if CCS.incombat == true then
             for _, module in pairs(CCS.Modules) do
                 if type(module.Initialize) == "function" then
-                    module:Initialize()
+                   -- module:Initialize()
                 end
             end
             CCS:FireEvent("CCS_EVENT_OPTIONS")
             CCS.incombat = false
         end
-    end,
+    end),
 
-    ["PLAYER_REGEN_DISABLED"] = function()
+    ["PLAYER_REGEN_DISABLED"] = WrapHandler("PLAYER_REGEN_DISABLED", function()
         local optionsFrame = _G["CCS_Options"]
         if optionsFrame and optionsFrame:IsShown() then
             optionsFrame:Hide()
             PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
         end
-    end,
+    end),
 
     ["PLAYER_SPECIALIZATION_CHANGED"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_SPECIALIZATION_CHANGED", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_STARTED_LOOKING"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_STARTED_LOOKING", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["PLAYER_STARTED_MOVING"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_STARTED_MOVING", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["PLAYER_STARTED_TURNING"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_STARTED_TURNING", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["PLAYER_STOPPED_LOOKING"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_STOPPED_LOOKING", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["PLAYER_STOPPED_MOVING"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_STOPPED_MOVING", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["PLAYER_STOPPED_TURNING"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_STOPPED_TURNING", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["PLAYER_TALENT_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_TALENT_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["QUEST_ACCEPTED"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("QUEST_ACCEPTED", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["SPEED_UPDATE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("SPEED_UPDATE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["TRAIT_CONFIG_UPDATED"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("TRAIT_CONFIG_UPDATED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["SPELL_POWER_CHANGED"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("SPELL_POWER_CHANGED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["UNIT_ATTACK"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_ATTACK", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_ATTACK_POWER"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_ATTACK_POWER", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_ATTACK_SPEED"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_ATTACK_SPEED", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_DAMAGE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_DAMAGE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_LEVEL"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_LEVEL", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_MAXHEALTH"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_MAXHEALTH", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_MAXPOWER"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_MAXPOWER", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_RANGED_ATTACK_POWER"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_RANGED_ATTACK_POWER", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_RANGEDDAMAGE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_RANGEDDAMAGE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_SPELL_HASTE"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_SPELL_HASTE", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["UNIT_STATS"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UNIT_STATS", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 
     ["UPDATE_INVENTORY_DURABILITY"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MOPCharacterSheetEventHandler, versions = { CCS.MOP } },
+        { fn = WrapHandler("UPDATE_INVENTORY_DURABILITY", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("UPDATE_INVENTORY_DURABILITY", CCS.MOPCharacterSheetEventHandler), versions = { CCS.MOP } },
     },
 
     ["WEEKLY_REWARDS_ITEM_CHANGED"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("WEEKLY_REWARDS_ITEM_CHANGED", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
     ["WEEKLY_REWARDS_UPDATE"] = {
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("WEEKLY_REWARDS_UPDATE", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
     },
 
     -- Custom events (manually fired)
     ["CCS_EVENT_CSHOW"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MOPCharacterSheetEventHandler, versions = { CCS.MOP } },
+        { fn = WrapHandler("CCS_EVENT_CSHOW", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_EVENT_CSHOW", CCS.MOPCharacterSheetEventHandler), versions = { CCS.MOP } },
     },
 
     ["CCS_STATS"] = {
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_STATS", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
     ["CCS_EVENT_OPTIONS"] = {
-        { fn = CCS.CharacterSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MOPCharacterSheetEventHandler, versions = { CCS.MOP } },
-        { fn = CCS.InspectSheetEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.RaidProgressEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.MythicPlusEventHandler, versions = { CCS.RETAIL } },
-        { fn = CCS.CharacterStatsEventHandler, versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_EVENT_OPTIONS", CCS.CharacterSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_EVENT_OPTIONS", CCS.MOPCharacterSheetEventHandler), versions = { CCS.MOP } },
+        { fn = WrapHandler("CCS_EVENT_OPTIONS", CCS.InspectSheetEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_EVENT_OPTIONS", CCS.RaidProgressEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_EVENT_OPTIONS", CCS.MythicPlusEventHandler), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("CCS_EVENT_OPTIONS", CCS.CharacterStatsEventHandler), versions = { CCS.RETAIL } },
     },
 }
+
 
 --------------------------------------------------------
 -- REGISTER ALL EVENTS DIRECTLY (Blizzard only)

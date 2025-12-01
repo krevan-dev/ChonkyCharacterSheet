@@ -1223,31 +1223,19 @@ function module:Initialize()
     TokenFramePopup.Border.Bg:SetColorTexture(0, 0, 0, 1)
     CurrencyTransferLog:SetFrameStrata("HIGH")
     --TokenFrame:SetScale(scaling); 
-    TokenFrame:ClearAllPoints()
-    TokenFrame:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 0, 0)
-    TokenFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", 0, 0)
-    TokenFrame.ScrollBox:ClearAllPoints()
-    TokenFrame.ScrollBox:SetPoint("TOPLEFT", CharacterFrameInset, "TOPLEFT", 4, -4)
-    TokenFrame.ScrollBox:SetPoint("BOTTOMRIGHT", CharacterFrameInset, "BOTTOMRIGHT", 325, 26)    
+    if not TokenFrame.CCS_Init then
+        TokenFrame:ClearAllPoints()
+        TokenFrame:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 0, 0)
+        TokenFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", 0, 0)
+        TokenFrame.ScrollBox:ClearAllPoints()
+        TokenFrame.ScrollBox:SetPoint("TOPLEFT", CharacterFrameInset, "TOPLEFT", 4, -4)
+        TokenFrame.ScrollBox:SetPoint("BOTTOMRIGHT", CharacterFrameInset, "BOTTOMRIGHT", 325, 26)    
+        TokenFrame.CCS_Init = true
+    end
     
     if C_AddOns.IsAddOnLoaded("Pawn") then
         PawnUI_InventoryPawnButton:ClearAllPoints()
         PawnUI_InventoryPawnButton:SetPoint("BOTTOMRIGHT", CharacterFrameInset.Bg, "BOTTOMRIGHT", 0, -55)
-    end
-    
-    if C_AddOns.IsAddOnLoaded("Narcissus") then
-        NarciCharacterFrameDominationIndicator:ClearAllPoints()
-        NarciCharacterFrameDominationIndicator:SetPoint("CENTER", CharacterFrameBg, "TOPRIGHT", -1, -45)
-        NarciCharacterFrameClassSetIndicator:ClearAllPoints()
-        NarciCharacterFrameClassSetIndicator:SetPoint("CENTER", CharacterFrameBg, "TOPRIGHT", -1, -45)
-    end
-    
-    if C_AddOns.IsAddOnLoaded("Outfitter") then    
-        OutfitterButton:ClearAllPoints()
-        OutfitterFrame:ClearAllPoints()
-        OutfitterButton:SetPoint("TOPLEFT", PaperDollSidebarTab3, "TOPRIGHT", 12, -4)
-        OutfitterFrame:SetPoint("TOPLEFT", PaperDollFrame, "TOPRIGHT", 345, 0)
-        OutfitterFrame:SetFrameStrata("HIGH")
     end
  
     if not _G["ccs_sf"] then 
@@ -1367,7 +1355,8 @@ function CCS.CharacterSheetEventHandler(event, ...)
             CCS.characterUpdatePending = true
             C_Timer.After(0.2, function()
                 CCS.characterUpdatePending = false
-                loopitems()
+                TryLoopItems()
+                --loopitems()
             end)
         end
         return true

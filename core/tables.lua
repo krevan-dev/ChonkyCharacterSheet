@@ -11,6 +11,8 @@ if expansionID >= 11 and playerLevel < 81 then
     CCS.tocversion = 110250
 end
 
+CCS.EventStats = {}
+CCS.EventStatsEnabled = false
 CCS.statsUpdatePending = false
 CCS.characterUpdatePending = false
 CCS.inspectUpdatePending = false
@@ -417,11 +419,15 @@ CCS.fonts = {
     ["Accidental Presidency"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Accidental Presidency.ttf",
     ["Anonymous Pro"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\AnonymousPro-Bold.ttf",
     ["Arial Narrow"] = "Fonts\\ARIALN.TTF", -- BLIZ
+    ["AR Hei"] = "Fonts\\ARHei.TTF", -- Blizz zhCN
+    ["AR Hei UHK Bold"] = "Fonts\\ARHEIUHK_BD.TTF", -- Blizz zhTW
     ["ARKai_C (Simplified Chinese)"] = "Fonts\\ARKai_C.ttf", -- BLIZ zhCN
     ["ARKai_T (Traditional Chinese)"] = "Fonts\\ARKai_T.ttf", -- BLIZ zhCN
     ["Avengeance"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Avengeance.ttf",
     ["Bazooka"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Bazooka.ttf",
     ["BHEI00M (Traditional Chinese)"] = "Fonts\\bHEI00M.ttf", -- BLIZ zhTW
+    ["BL Hei"] = "Fonts\\BLEI00D.TTF", -- Bliz zhTW
+    ["BKai Medium"] = "Fonts\\BKAI00M.TTF", -- Bliz zhTW    
     ["Bradley Gratis"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\BradleyGratis.ttf",
     ["Brave"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Brave.ttf",
     ["CaptainMarvel"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Danvers.ttf",
@@ -445,9 +451,11 @@ CCS.fonts = {
     ["Friz Quadrata TT"] = "Fonts\\FRIZQT__.TTF", -- BLIZ
     ["Futura"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Futura Condensed.ttf",
     ["Harry P"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\HARRYP__.TTF",
+    ["Korean Page Text"] = "Fonts\\K_PAGETEXT.TTF", -- Bliz koKR
     ["Liberation Sans"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\LiberationSans-Regular.ttf",
     ["Monofonto"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\MONOFONT.TTF",
     ["Morpheus"] = "Fonts\\MORPHEUS.TTF", -- BLIZ
+    ["Morpheus (Cyrillic)"] = "Fonts\\MORPHEUS_CYR.TTF", -- Bliz ruRU    
     ["Mouse Memoirs"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Memoirs.ttf",
     ["New Walt Disney Font"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Walt.ttf",
     ["Noto Naskh Arabic"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\NotoNaskhArabic-Regular.ttf",
@@ -503,6 +511,33 @@ CCS.fontLabels = {
         ruRU = "Anonymous Pro",
         ptBR = "Anonymous Pro",
         itIT = "Anonymous Pro",
+    },
+    ["AR Hei"] = {
+        enUS = "AR Hei",
+        koKR = "AR 헤이",
+        frFR = "AR Hei",
+        deDE = "AR Hei",
+        zhCN = "雅黑",
+        esES = "AR Hei",
+        zhTW = "雅黑",
+        esMX = "AR Hei",
+        ruRU = "AR Хэй",
+        ptBR = "AR Hei",
+        itIT = "AR Hei",
+    },
+
+    ["AR Hei UHK Bold"] = {
+        enUS = "AR Hei UHK Bold",
+        koKR = "AR 헤이 UHK 볼드",
+        frFR = "AR Hei UHK Gras",
+        deDE = "AR Hei UHK Fett",
+        zhCN = "雅黑加粗",
+        esES = "AR Hei UHK Negrita",
+        zhTW = "雅黑加粗",
+        esMX = "AR Hei UHK Negrita",
+        ruRU = "AR Хэй UHK Полужирный",
+        ptBR = "AR Hei UHK Negrito",
+        itIT = "AR Hei UHK Grassetto",
     },
     ["Arial Narrow"] = {
         enUS = "Arial Narrow",
@@ -582,6 +617,33 @@ CCS.fontLabels = {
         ptBR = "BHEI00M (chinês tradicional)",
         itIT = "BHEI00M (cinese tradizionale)",
     },
+    ["BL Hei"] = {
+        enUS = "BL Hei",
+        koKR = "BL 헤이",
+        frFR = "BL Hei",
+        deDE = "BL Hei",
+        zhCN = "BL 黑",
+        esES = "BL Hei",
+        zhTW = "BL 黑",
+        esMX = "BL Hei",
+        ruRU = "BL Хэй",
+        ptBR = "BL Hei",
+        itIT = "BL Hei",
+    },
+
+    ["BKai Medium"] = {
+        enUS = "BKai Medium",
+        koKR = "BKai 미디엄",
+        frFR = "BKai Moyen",
+        deDE = "BKai Mittel",
+        zhCN = "标楷体",
+        esES = "BKai Medio",
+        zhTW = "標楷體",
+        esMX = "BKai Medio",
+        ruRU = "BKai Средний",
+        ptBR = "BKai Médio",
+        itIT = "BKai Medio",
+    },    
     ["Bradley Gratis"] = {
         enUS = "Bradley Gratis",
         koKR = "브래들리 그라티스",
@@ -881,6 +943,19 @@ CCS.fontLabels = {
         ptBR = "Harry P",
         itIT = "Harry P",
     },
+    ["Korean Page Text"] = {
+        enUS = "Korean Page Text",
+        koKR = "페이지 텍스트",
+        frFR = "Texte de Page Coréen",
+        deDE = "Koreanischer Seitentext",
+        zhCN = "韩文页面文字",
+        esES = "Texto de Página Coreano",
+        zhTW = "韓文頁面文字",
+        esMX = "Texto de Página Coreano",
+        ruRU = "Корейский текст страницы",
+        ptBR = "Texto de Página Coreano",
+        itIT = "Testo di Pagina Coreano",
+    },    
     ["Liberation Sans"] = {
         enUS = "Liberation Sans",
         koKR = "리버레이션 산스",
@@ -920,6 +995,19 @@ CCS.fontLabels = {
         ptBR = "Morpheus",
         itIT = "Morpheus",
     },
+    ["Morpheus (Cyrillic)"] = {
+        enUS = "Morpheus (Cyrillic)",
+        koKR = "모피어스 (키릴문자)",
+        frFR = "Morphée (Cyrillique)",
+        deDE = "Morpheus (Kyrillisch)",
+        zhCN = "莫菲斯 (西里尔字母)",
+        esES = "Morfeo (Cirílico)",
+        zhTW = "莫菲斯 (西里爾文)",
+        esMX = "Morfeo (Cirílico)",
+        ruRU = "Морфей (кириллица)",
+        ptBR = "Morpheus (Cirílico)",
+        itIT = "Morpheus (Cirillico)",
+    },    
     ["Mouse Memoirs"] = {
         enUS = "Mouse Memoirs",
         koKR = "마우스 메모리즈",

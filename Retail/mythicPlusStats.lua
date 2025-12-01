@@ -347,9 +347,7 @@ end
 
 local function updatesideframe()
 	if InCombatLockdown() then CCS.incombat = true return end
-	
-	-- Update the Weekly Rewards Frames
-	WeeklyRewardsFrame:FullRefresh()
+
 	local tf = {WeeklyRewardsFrame:GetChildren()};
 	local x=1; -- M+
 	local x1=1; -- Raid
@@ -462,8 +460,9 @@ local function updatesideframe()
 	if C_WeeklyRewards.HasAvailableRewards() then _G["ccsm_fs4"]:Show() else _G["ccsm_fs4"]:Hide() end
 	
 	local ccsm_fs1 = _G["ccsm_fs1"]
-	if C_MythicPlus.GetOwnedKeystoneLevel() and C_MythicPlus.GetOwnedKeystoneChallengeMapID() then
-		local mapName, _, MaptimeLimit, MapTexture = C_ChallengeMode.GetMapUIInfo(C_MythicPlus.GetOwnedKeystoneChallengeMapID())
+
+	if C_MythicPlus.GetOwnedKeystoneLevel() ~= nil and C_MythicPlus.GetOwnedKeystoneChallengeMapID() ~= nil then
+	local mapName, _, MaptimeLimit, MapTexture = C_ChallengeMode.GetMapUIInfo(C_MythicPlus.GetOwnedKeystoneChallengeMapID())
 		tempstring = "("..C_MythicPlus.GetOwnedKeystoneLevel()..") "..mapName
 	else 
 		tempstring = ADDON_MISSING
@@ -1215,7 +1214,6 @@ function CCS.MythicPlusEventHandler(event, ...)
 	end
 
     if event == "CCS_EVENT_OPTIONS" then
-        WeeklyRewardsFrame:FullRefresh()
 		initializeframes()
         updatesideframe()
         return true
@@ -1223,9 +1221,10 @@ function CCS.MythicPlusEventHandler(event, ...)
 
     if not CCS.mythicUpdatePending then
         CCS.mythicUpdatePending = true
-        C_Timer.After(0.2, function()
+		-- Update the Weekly Rewards Frames
+		WeeklyRewardsFrame:FullRefresh()
+        C_Timer.After(1, function()
             CCS.mythicUpdatePending = false
-            WeeklyRewardsFrame:FullRefresh()
             updatesideframe()
         end)
     end
