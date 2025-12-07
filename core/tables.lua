@@ -4,10 +4,10 @@ local CCS = ns.CCS
 
 local _, _, _, tocversion = GetBuildInfo()
 CCS.tocversion = tocversion
-local expansionID = GetExpansionLevel()
+CCS.expansionID = GetExpansionLevel()
 local playerLevel = UnitLevel("player")
 
-if expansionID >= 11 and playerLevel < 81 then
+if CCS.expansionID >= 11 and playerLevel < 81 then
     CCS.tocversion = 110250
 end
 
@@ -20,7 +20,10 @@ CCS.mythicUpdatePending = false
 CCS.raidUpdatePending = false
 CCS.optionsUpdatePending = false
 CCS.Hooked = false
+CCS.HookedInspect = false
 CCS.incombat = false
+CCS.GameTooltip = false
+CCS.ActiveFontMenu = nil
 
 -- Game version flags
 CCS.RETAIL  = 1
@@ -80,7 +83,7 @@ function CCS:GetDefaultFontForLocale()
     if locale == "zhCN" then
         return "Fonts\\ARKai_C.ttf" -- Simplified Chinese
     elseif locale == "zhTW" then
-        return "Fonts\\bHEI00M.ttf" -- Traditional Chinese
+        return "Fonts\\bLEI00D.TTF" -- Traditional Chinese (default font for main client)
     elseif locale == "koKR" then
         return "Fonts\\2002.TTF" -- Korean
     elseif locale == "ruRU" then
@@ -135,6 +138,30 @@ ns.optionDefs = {
     { type="slider", cat="GENERAL", ver=bit.bor(CCS.ALL), key="sheetscale_inspect", label=L["SHEET_SCALE_INSPECT"], value=1, default=1, min=0.5, max=1.25, step=0.1, slots=2 },
     { type="slider", cat="GENERAL", ver=bit.bor(CCS.ALL), key="vpad_inspect", label=L["V_PAD_INSPECT"], value=23, default=23, min=0, max=40, step=1, slots=2 },
     { type="font", cat="GENERAL", ver=bit.bor(CCS.ALL), key="default_font", label=L["DEFAULT_FONT_NAME"], value="Fonts\\FRIZQT__.TTF", default="Fonts\\FRIZQT__.TTF", slots=2},
+    { type="header", cat="GENERAL", ver=bit.bor(CCS.ALL), key=nil, label="", slots=2, color={0.7, 0.5, 1.0}, fontSize=10, fontOutline="THICKOUTLINE" },
+    { type="button", cat="GENERAL", ver=bit.bor(CCS.ALL), key=nil, label=L["Apply Font to All"],  slots = 2, 
+            onClick = function()
+                local value = CCS.CurrentProfile["default_font"]
+                if value ~= nil then
+                    for _, def in ipairs(ns.optionDefs) do
+                        if def.type == "font" and def.frame then
+                            if def.frame.isCCSScrollDropdown and def.frame.SetSelectedValue then
+                                -- custom scroll dropdown: let its shim handle both value and display name
+                                def.frame:SetSelectedValue(value)
+                            else
+                                -- native Blizzard dropdown
+                                UIDropDownMenu_SetSelectedValue(def.frame, value)
+                                local display = CCS.fontPathsLocalized[value] or value
+                                UIDropDownMenu_SetText(def.frame, display)
+                            end
+
+                            CCS:UpdateOption(def, value)
+                        end
+                    end
+                    CCS:RefreshOptionsUI()
+                    CCS.InitializeModules()
+                end
+            end},
 
     -- Character Sheet General Display Settings
     { type="divider", cat="CHAR-SHEET", ver=bit.bor(CCS.ALL), slots=4 },
@@ -163,6 +190,7 @@ ns.optionDefs = {
     { type="checkbox", cat="CHAR-SHEET", ver=bit.bor(CCS.ALL), key="showsetitems", label=L["SHOW_SET_ITEMS"], value=true, default=true, slots=1 },
     { type="color", cat="CHAR-SHEET", ver=bit.bor(CCS.ALL), key="setitemcolor", label=L["SET_ITEM_COLOR"], value={0.05,0.75,0.45,1}, default={0.05,0.75,0.45,1}, slots=1 },
     { type="checkbox", cat="CHAR-SHEET", ver=bit.bor(CCS.ALL), key="showsetclasscolor", label=L["SHOW_SET_CLASS_COLOR"], value=true, default=true, slots=1 },
+    { type="slider", cat="CHAR-SHEET", ver=bit.bor(CCS.ALL), key="enchantnamelength", label=L["ENCHANT_NAME_LENGTH"], value=100, default=100, min=20, max=100, step=1, slots=2 },
 
     -- Loot Spec Display Options
     { type="divider", cat="CHAR-SHEET", ver=bit.bor(CCS.ALL), slots=4 },
@@ -381,6 +409,7 @@ ns.optionDefs = {
     { type="divider", cat="INSPECT-SHEET", ver=bit.bor(CCS.RETAIL), slots=4 },    
     { type="checkbox", cat="INSPECT-SHEET", ver=bit.bor(CCS.RETAIL), key="showitemupgrade_inspect", label=L["SHOW_ITEM_UPGRADE_INSPECT"], value=true, default=true, slots=1 },
     { type="color", cat="INSPECT-SHEET", ver=bit.bor(CCS.RETAIL), key="itemupgradecolor_inspect", label=L["ITEM_UPGRADE_COLOR_INSPECT"], value={0.98,0.60,0.36,1}, default={0.98,0.60,0.36,1}, slots=2 },
+    { type="checkbox", cat="INSPECT-SHEET", ver=bit.bor(CCS.RETAIL), key="showilvl_spec_ontt", label=TARGET_TOOLTIP_OPTION, value=false, default=false, slots=1 },
 
     -- Inspect Font Settings
     { type="divider", cat="INSPECT-FONT", ver=bit.bor(CCS.ALL), slots=4 },
@@ -454,8 +483,8 @@ CCS.fonts = {
     ["Korean Page Text"] = "Fonts\\K_PAGETEXT.TTF", -- Bliz koKR
     ["Liberation Sans"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\LiberationSans-Regular.ttf",
     ["Monofonto"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\MONOFONT.TTF",
-    ["Morpheus"] = "Fonts\\MORPHEUS.TTF", -- BLIZ
-    ["Morpheus (Cyrillic)"] = "Fonts\\MORPHEUS_CYR.TTF", -- Bliz ruRU    
+    --["Morpheus"] = "Fonts\\MORPHEUS.TTF", -- BLIZ
+    ["Morpheus"] = "Fonts\\MORPHEUS_CYR.TTF", -- Bliz ruRU    
     ["Mouse Memoirs"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Memoirs.ttf",
     ["New Walt Disney Font"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\Walt.ttf",
     ["Noto Naskh Arabic"] = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Fonts\\NotoNaskhArabic-Regular.ttf",
@@ -1199,6 +1228,17 @@ for label, path in pairs(CCS.fonts) do
     local localized = CCS.fontLabels[label] and CCS.fontLabels[label][locale] or label
     CCS.fontPathsLocalized[path] = localized
 end
+
+--/dump LibStub("LibSharedMedia-3.0"):List("font")[x] for each entry
+--/dump LibStub("LibSharedMedia-3.0"):Fetch("font", LibStub("LibSharedMedia-3.0"):List("font")[1])
+local LSM = LibStub("LibSharedMedia-3.0")
+
+if LSM then
+    for label, path in pairs(CCS.fonts) do
+        LSM:Register("font", CCS.fontPathsLocalized[path], path)
+    end
+end
+
 
 -- Key is Paragon Quest ID
 CCS.Paragon_Factions = {

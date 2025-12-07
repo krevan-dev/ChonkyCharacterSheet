@@ -8,6 +8,8 @@ local L = ns.L  -- grab the localization table
 CCS.EventsFrame = CCS.EventsFrame or CreateFrame("Frame")
 CCS.RegisteredEvents = CCS.RegisteredEvents or {}
 
+local LSM = LibStub("LibSharedMedia-3.0")
+
 --------------------------------------------------------
 -- Register event handler (supports multiple listeners, version-aware)
 --------------------------------------------------------
@@ -248,11 +250,21 @@ local eventHandlers = {
     },
 
     ["PLAYER_LOGIN"] = WrapHandler("PLAYER_LOGIN", function()
+
         for _, def in ipairs(ns.optionDefs or {}) do
             if def.key then
-                CCS:UpdateOption(def, CCS.CurrentProfile[def.key])
+                local value = CCS.CurrentProfile[def.key]
+            
+                if def.type == "font" then
+                    local profileFontpath = CCS.CurrentProfile[def.key]
+                    local fontName = CCS.GetFontKeyByPath(profileFontpath)
+                    local LSM_fontpath = LSM:Fetch("font", fontName)
+                    value = LSM_fontpath
+                end
+                CCS:UpdateOption(def, value)
             end
-        end
+        end    
+                
         CCS:Initialize()
         CCS:LoadBlizzardAddOns()
         C_Timer.After(0.1, function()

@@ -6,12 +6,26 @@ local frame = _G["CCS_Options"] or CreateFrame("Frame", "CCS_Options", UIParent,
 local locale = GetLocale()
 local DEBUG = false  -- set to false to silence debug prints
 
+
 -- Debug print function cause I am tired of commenting and uncommenting print statements.
 function CCS.dprint(...)
     if DEBUG then
         print(...)
     end
 end
+
+local LSM = LibStub("LibSharedMedia-3.0")
+
+function CCS.GetFontKeyByPath(path)
+    if not path then return nil end
+    for key, fontPath in pairs(LSM.MediaTable.font) do
+        if fontPath:lower() == path:lower() then
+            return key
+        end
+    end
+    return nil
+end
+
 
 -- All of this tooltip code because blizzard needs to control GameTooltip and causes secret issues if a tooltip displays money... Frickin glorious...
 function CCS:CreateTooltip(name)
@@ -1169,8 +1183,10 @@ function CCS:LoadOptions()
             -- **Populate the UI control**
             if def.type == "checkbox" and def.frame and def.frame.SetChecked then
                 def.frame:SetChecked(valueToUse == true)
-            elseif (def.type == "dropdown" or def.type == "font") and def.frame and def.frame.SetSelectedValue then
+            elseif def.type == "dropdown" and def.frame then
                 UIDropDownMenu_SetSelectedValue(def.frame, valueToUse)
+            elseif def.type == "font" and def.frame and def.frame.SetSelectedValue then
+                def.frame:SetSelectedValue(valueToUse)
             elseif def.type == "slider" and def.frame and def.frame.SetValue then
                 def.frame:SetValue(tonumber(valueToUse) or 0)
             elseif def.type == "color" and def.frame and def.frame.texture and type(valueToUse) == "table" then
@@ -1986,35 +2002,111 @@ function CCS.updateLocationInfo(unit, slotIndex, framename)
             
                 -- See if an enchant is missing from a slot. Extra code is to allow us to turn on/off the slots each time blizzard makes a change.
                 if slotIndex == 1 then --  "Head" -
-                    --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end
                 elseif slotIndex == 2 then --  "Neck" !
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 3 then --  "Shoulder"
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end
                 elseif slotIndex == 5 then --  "Chest" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end
                 elseif slotIndex == 6 then --  "Waist" -
-                    --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 7 then --  "Legs" -
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 8 then --  "Feet" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 9 then --  "Wrist" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 10 then --  "Hands" !
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 11 then --  "Finger0" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 12 then --  "Finger1" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 15 then --  "Back" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        --Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 16 then --  "MainHand" !
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 elseif slotIndex == 17 and itemType == "Weapon" then --  "SecondaryHand" -
-                    Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"            
+                    if CCS.expansionID == LE_EXPANSION_WAR_WITHIN then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"
+                    elseif CCS.expansionID == LE_EXPANSION_MIDNIGHT then
+                        Enchant = "<" .. ENSCRIBE .. ": " .. ADDON_MISSING .. ">"                        
+                    end                
                 end
             end
-            if strlen(Enchant) > 100 then Enchant = format("%.75s", Enchant) .. "..." end
+            
+                        -- detect trailing icon escape (|A...|a or |T...|t)
+            local enchantlen = option("enchantnamelength") or 100
+            local ellipsis = "..."
+            local iconStart = Enchant:match(".*()|[AT].-|[at]$")
+
+            if strlen(Enchant) > enchantlen and iconStart then
+                local textPart = Enchant:sub(1, iconStart-1)
+                local iconPart = Enchant:sub(iconStart)
+                if strlen(textPart) > enchantlen - strlen(ellipsis) then
+                    textPart = string.utf8sub(textPart, 1, enchantlen - strlen(ellipsis)) .. ellipsis
+                end
+                Enchant = textPart .. iconPart
+            elseif strlen(Enchant) > enchantlen then
+                Enchant = string.utf8sub(Enchant, 1, enchantlen - strlen(ellipsis)) .. ellipsis
+            end
+
             enchantTxt:SetText(Enchant)
             enchantTxt:Show()
+            
         end
         
         -- Display Durability text (white)

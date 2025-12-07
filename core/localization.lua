@@ -27,9 +27,11 @@ local defaultStrings = {
     ------------------------------------------------------------
     -- General / Common
     ------------------------------------------------------------
+	["Apply Font to All"] = "Apply Font to All", -- enUS/enGB
 	["Show wowhead recommended secondary stat priority"] = "Show wowhead recommended secondary stat priority", -- enUS/enGB
 	["Secondary (Priority)"] = "Secondary (Priority)",
 	["Enchanted:"] = "Enchanted:",
+	["ENCHANT_NAME_LENGTH"] = "Enchant Name Length",
 	["and"] = "and",
     ["ADDON_NAME"] = "Chonky Character Sheet",
 	["Compare"] = "Compare",
@@ -284,7 +286,9 @@ if locale == "enGB" then
 elseif locale == "deDE" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "Schriftart auf alle anwenden", -- deDE
 		["Show wowhead recommended secondary stat priority"] = "Zeige von Wowhead empfohlene sekundäre Wertepriorität", -- deDE
+		["ENCHANT_NAME_LENGTH"] = "Länge des Verzauberungsnamens", -- deDE
 		["Secondary (Priority)"] = "Sekundär (Priorität)",
 		["Enchanted:"] = "Verzaubert:",
         ["and"] = "und",
@@ -509,6 +513,8 @@ elseif locale == "deDE" then
 elseif locale == "frFR" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "Appliquer la police à tout", -- frFR
+		["ENCHANT_NAME_LENGTH"] = "Longueur du nom d'enchantement", -- frFR
 		["Show wowhead recommended secondary stat priority"] = "Afficher la priorité des statistiques secondaires recommandée par Wowhead", -- frFR
 		["Secondary (Priority)"] = "Secondaire (Priorité)",
 		["Enchanted:"] = "Enchanté:",
@@ -734,6 +740,8 @@ elseif locale == "frFR" then
 elseif locale == "esES" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "Aplicar fuente a todo", -- esES
+		["ENCHANT_NAME_LENGTH"] = "Longitud del nombre de encantamiento", -- esES
 		["Show wowhead recommended secondary stat priority"] = "Mostrar la prioridad de estadísticas secundarias recomendada por Wowhead", -- esES
 		["Secondary (Priority)"] = "Secundario (Prioridad)",
 		["Enchanted:"] = "Encantado:",
@@ -959,6 +967,8 @@ elseif locale == "esES" then
 elseif locale == "esMX" then
     localizedStrings = {
 		-- General / Common
+	    ["Apply Font to All"] = "Aplicar fuente a todo", -- esMX
+		["ENCHANT_NAME_LENGTH"] = "Longitud del nombre de encantamiento", -- esMX
 		["Show wowhead recommended secondary stat priority"] = "Mostrar la prioridad de estadísticas secundarias recomendada por Wowhead", -- esMX
 		["Secondary (Priority)"] = "Secundario (Prioridad)",
 		["Enchanted:"] = "Encantado:",
@@ -1184,6 +1194,8 @@ elseif locale == "esMX" then
 elseif locale == "ruRU" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "Применить шрифт ко всем", -- ruRU
+		["ENCHANT_NAME_LENGTH"] = "Длина названия чар", -- ruRU		
 		["Show wowhead recommended secondary stat priority"] = "Показать рекомендуемый Wowhead приоритет вторичных характеристик", -- ruRU
 		["Secondary (Priority)"] = "Вторичный (Приоритет)",
 		["Enchanted:"] = "Чары:",
@@ -1409,6 +1421,8 @@ elseif locale == "ruRU" then
 elseif locale == "koKR" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "모든 항목에 글꼴 적용", -- koKR
+		["ENCHANT_NAME_LENGTH"] = "마법부여 이름 길이", -- koKR
 		["Show wowhead recommended secondary stat priority"] = "와우헤드 추천 보조 능력치 우선순위 표시", -- koKR
 		["Secondary (Priority)"] = "보조 (우선순위)",
 		["Enchanted:"] = "마법부여:",
@@ -1634,6 +1648,8 @@ elseif locale == "koKR" then
 elseif locale == "zhCN" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "应用字体到全部", -- zhCN
+		["ENCHANT_NAME_LENGTH"] = "附魔名称长度", -- zhCN
 		["Show wowhead recommended secondary stat priority"] = "显示 Wowhead 推荐的副属性优先级", -- zhCN
 		["Secondary (Priority)"] = "次要（优先级）",
 		["Enchanted:"] = "附魔：",
@@ -1859,6 +1875,8 @@ elseif locale == "zhCN" then
 elseif locale == "zhTW" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "套用字型到全部", -- zhTW
+		["ENCHANT_NAME_LENGTH"] = "附魔名稱長度", -- zhTW
 		["Show wowhead recommended secondary stat priority"] = "顯示 Wowhead 推薦的副屬性優先順序", -- zhTW
 		["Secondary (Priority)"] = "次要（優先順序）",
 		["Enchanted:"] = "附魔：",
@@ -2084,6 +2102,8 @@ elseif locale == "zhTW" then
 elseif locale == "ptBR" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "Aplicar fonte a tudo", -- ptBR
+		["ENCHANT_NAME_LENGTH"] = "Comprimento do nome do encantamento", -- ptBR
 		["Show wowhead recommended secondary stat priority"] = "Mostrar a prioridade de atributos secundários recomendada pelo Wowhead", -- ptBR
 		["Secondary (Priority)"] = "Secundário (Prioridade)",
 		["Enchanted:"] = "Encantado:",
@@ -2309,6 +2329,8 @@ elseif locale == "ptBR" then
 elseif locale == "itIT" then
     localizedStrings = {
 		-- General / Common
+		["Apply Font to All"] = "Applica carattere a tutto", -- itIT
+		["ENCHANT_NAME_LENGTH"] = "Lunghezza nome incantamento", -- itIT
 		["Show wowhead recommended secondary stat priority"] = "Mostra la priorità delle statistiche secondarie consigliata da Wowhead", -- itIT
 		["Secondary (Priority)"] = "Secondario (Priorità)",
 		["Enchanted:"] = "Incantato:",

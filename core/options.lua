@@ -3,6 +3,7 @@ local L = ns.L  -- grab the localization table
 local CCS = ns.CCS  -- use the shared main addon table
 local GlobalSlotWidth = 169
 local option = function(key) return CCS:GetOptionValue(key) end
+local LSM = LibStub("LibSharedMedia-3.0")
 local frame = _G["CCS_Options"] or CreateFrame("Frame", "CCS_Options", UIParent, BackdropTemplateMixin and "BackdropTemplate")
 -------------------------
 -- Frame Creation
@@ -52,6 +53,13 @@ closeBtn:SetNormalTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textu
 closeBtn:SetHighlightTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\close-h.png")
 closeBtn:SetSize(32, 32)
 closeBtn:SetScale(.5)
+
+closeBtn:HookScript("OnHide", function()
+    if CCS.ActiveFontMenu then
+        CCS.ActiveFontMenu:Hide()
+        CCS.ActiveFontMenu = nil
+    end
+end)
 
 local chkline = frame:CreateTexture(nil, "ARTWORK")
 chkline:SetColorTexture(0.2, .05, 0.3, .6)
@@ -543,7 +551,6 @@ function CCS:RefreshOptionsUI()
         if value == nil then value = def.default end
 
         if def.frame then
-            
             if def.type == "slider" and def.frame.updateThumbPosition then
                 local numVal = tonumber(string.format("%.2f", tonumber(value) or 0))
                 def.frame.updateThumbPosition(numVal)
@@ -557,12 +564,15 @@ function CCS:RefreshOptionsUI()
                     value = def.default
                 end
 
-                -- always apply selection and visible text
-                UIDropDownMenu_SetSelectedValue(def.frame, value)
-
-                -- lookup localized label
-                local display = CCS.fontPathsLocalized[value] or value
-                UIDropDownMenu_SetText(def.frame, display)
+                if def.frame.isCCSScrollDropdown and def.frame.SetSelectedValue then
+                    -- custom scroll dropdown: let its shim handle both value and display name
+                    def.frame:SetSelectedValue(value)
+                else
+                    -- native Blizzard dropdown
+                    UIDropDownMenu_SetSelectedValue(def.frame, value)
+                    local display = CCS.fontPathsLocalized[value] or value
+                    UIDropDownMenu_SetText(def.frame, display)
+                end
 
             elseif def.type == "color" and def.frame.texture and type(value) == "table" then
                 def.frame.texture:SetColorTexture(value[1], value[2], value[3], value[4] or 1)
@@ -626,6 +636,38 @@ local function newHeader(def, parent, rowHeight)
     fs:SetJustifyH("CENTER")
     
     return fs
+end
+
+local function newButton(def, parent, rowHeight)
+    local key = 1
+    if parent.btncount ~= nil then 
+        key = parent.btncount + 1
+    else
+        parent.btncount = key
+    end
+    
+    local btn = CreateFrame("Button", "CCSbtn" .. key, parent, "BackdropTemplate")
+    local slotWidth = (def.slots or 2) * GlobalSlotWidth
+    
+    -- Size
+    btn:SetSize(slotWidth-4, 22)
+    CCS.SkinButton(btn)
+    -- Label
+    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetText(def.label or "")
+    label:SetAllPoints(btn) -- checkboxWidth + padding
+    label:SetWordWrap(true)
+    label:SetJustifyH("CENTER")
+    
+    --btn:SetText(def.label or "")
+    --btn.Text:SetFont(CCS:GetDefaultFontForLocale(), 12, "OUTLINE")
+
+    -- OnClick handler
+    if def.onClick then
+        btn:SetScript("OnClick", def.onClick)
+    end
+
+    return btn
 end
 
 local function newCheckbox(def, parent, rowHeight)
@@ -735,10 +777,6 @@ local function newDropdown(def, parent, rowHeight)
     return frame, dd
 end
 
-local function newFontSelector(def, parent, rowHeight)
-    local slotWidth = (def.slots or 2) * GlobalSlotWidth
-    local locale = GetLocale()
-
 --Testing info
 --locale = "enUS" --	English (United States) enGB clients return enUS
 --locale = "koKR" --	Korean (Korea)
@@ -751,9 +789,13 @@ local function newFontSelector(def, parent, rowHeight)
 --locale = "ruRU" --	Russian (Russia)
 --locale = "ptBR" --	Portuguese (Brazil)
 --locale = "itIT" --	Italian (Italy)
-    
+
+local function newFontSelector(def, parent, rowHeight)
+    local slotWidth = (def.slots or 2) * GlobalSlotWidth
+    local locale = GetLocale()
+
     -- Container frame
-    local frame = CreateFrame("Frame", nil, parent)
+    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     frame:SetSize(slotWidth, rowHeight)
 
     -- Label
@@ -765,75 +807,296 @@ local function newFontSelector(def, parent, rowHeight)
     -- Key for SavedVariables
     local key = def.key or def.label
 
-    -- Reverse mapping: path -> name
+    -- Reverse mapping: path -> name (seed with CCS fonts)
     local pathToName = {}
-    for name, path in pairs(CCS.fonts) do
-        pathToName[path] = name
+    for name, path in pairs(CCS.fonts or {}) do
+        if type(path) == "string" then
+            pathToName[path] = name
+        end
     end
 
-    -- Initialize value
+    -- Augment reverse map with LSM fonts (registered by other addons)
+    local function BuildLSMReverseMap()
+        if not LSM or not LSM.List then return end
+        for _, fontName in ipairs(LSM:List("font")) do
+            local p = LSM:Fetch("font", fontName, true) -- true = raw path if available
+            if type(p) == "string" and p ~= "" then
+                -- prefer existing mapping, but fill gaps from LSM
+                if not pathToName[p] then
+                    pathToName[p] = fontName
+                end
+            end
+        end
+    end
+    BuildLSMReverseMap()
+
+    -- Fallback resolver: try to find an LSM name by path match when map misses
+    local function ResolveFontNameFromPath(path)
+        if not path or path == "" then return nil end
+        if pathToName[path] then return pathToName[path] end
+        if LSM and LSM.List then
+            for _, fontName in ipairs(LSM:List("font")) do
+                local p = LSM:Fetch("font", fontName, true)
+                if p == path then
+                    pathToName[path] = fontName -- cache for future calls
+                    return fontName
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Initialize value (store path)
     local currentValue = CCS.CurrentProfile[key]
-    if currentValue == nil or not pathToName[currentValue] then
+    if currentValue == nil or (type(currentValue) ~= "string") then
         currentValue = def.value or next(CCS.fonts)
         CCS.CurrentProfile[key] = currentValue
     end
 
-    -- Dropdown
-    local dd = CreateFrame("Frame", "CCSfdd"..def.key, parent, "UIDropDownMenuTemplate, BackdropTemplate")
-    SkinDropdown(dd, "CCSfdd"..def.key)
-    
-    UIDropDownMenu_SetWidth(dd, slotWidth - 75)
+    -- Dropdown button
+    local dd = CreateFrame("Button", "CCSfdd"..(def.key or key), frame, "UIPanelButtonTemplate, BackdropTemplate")
+    dd:SetSize(slotWidth - 20, rowHeight*.75)
     dd:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", -10, -2)
     dd:SetScale(.75)
-    _G[dd:GetName().."Text"]:SetFont(CCS:GetDefaultFontForLocale(), 14)
+    dd:SetText("Select font...")
+    dd.isCCSScrollDropdown = true
     
-    UIDropDownMenu_Initialize(dd, function(self)
-        -- Extract and sort font names
-        local sortedNames = {}
-        for fontName in pairs(CCS.fonts) do
-            table.insert(sortedNames, fontName)
-        end
-        --table.sort(sortedNames)
-        --table.sort(sortedNames, function(a, b) return (L[a] or a) < (L[b] or b) end)
-        
-        table.sort(sortedNames, function(a, b)
-            local la = CCS.fontLabels[a] and CCS.fontLabels[a][locale] or a
-            local lb = CCS.fontLabels[b] and CCS.fontLabels[b][locale] or b
-            return la < lb
-        end)    
+    dd.Left:Hide()
+    dd.Middle:Hide()
+    dd.Right:Hide()
+    dd:GetHighlightTexture():SetVertexColor(0.78, 0.14, 0.69, 0) -- Neon purple with transparency
+    local BUTTON_HEIGHT = 20
+    local BUTTON_DISPLAY_COUNT = 20    
+    local BUTTON_WIDTH = slotWidth - 40
+  
+    -- Left-justify, resize, and recolor the text
+    local fs = dd:GetFontString()
+    if fs then
+        fs:ClearAllPoints()
+        fs:SetPoint("LEFT", dd, "LEFT", 6, 0)   -- anchor to the left edge with padding
+        fs:SetJustifyH("LEFT")                  -- horizontal justification
+        fs:SetFont(CCS:GetDefaultFontForLocale(), 14, "OUTLINE") -- adjust size and style
+        fs:SetTextColor(1, 1, 1, 1)
+    end
 
-        -- Add fonts to dropdown in alphabetical order
-        for _, fontName in ipairs(sortedNames) do
-            local fontPath = CCS.fonts[fontName]
-            local displayName = CCS.fontLabels[fontName] and CCS.fontLabels[fontName][locale] or fontName
-            local info = UIDropDownMenu_CreateInfo()
-            if fontPath == def.default then
-                info.text = "|cFF00FF00("..CHAT_DEFAULT..") " .. displayName .. " |r"
-            else
-                info.text = displayName
+    SkinDropdown(dd, "CCSfdd"..def.key)
+    -- Style arrow
+
+    local ddheight = dd:GetHeight()
+    local arrowFrame = CreateFrame("Button", nil, dd, BackdropTemplateMixin and "BackdropTemplate")
+    arrowFrame:SetSize(ddheight-6, ddheight-6)
+    arrowFrame:SetPoint("TOPRIGHT", dd, "TOPRIGHT", -3, -3)
+
+    arrowFrame:SetBackdrop({
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+    })
+    arrowFrame:SetBackdropBorderColor(1, 1, 1, 1) -- white border
+    arrowFrame:SetNormalTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\down-arrow.png")
+    arrowFrame:SetHighlightTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\down-arrow-h.png")
+
+    dd:EnableMouse(true)
+    dd:SetScript("OnEnter", function()
+        arrowFrame:GetNormalTexture():SetTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\down-arrow-h.png")
+    end)
+    
+    -- Menu frame with scroll
+    local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    menu:SetFrameStrata("TOOLTIP")   -- draw above most UI
+    menu:SetFrameLevel(1000)         -- ensure it's higher than parent panels
+    menu:SetSize(slotWidth, BUTTON_HEIGHT*BUTTON_DISPLAY_COUNT+5) -- Make it longer but still scrollable
+    menu:SetScale(dd:GetScale())
+    menu:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
+    menu:EnableMouse(true)
+    menu:SetClampedToScreen(true)
+    menu:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    menu:SetBackdropColor(0, 0, 0, 1)   
+    menu:Hide()
+   
+    local function HandleLeave()
+        if not MouseIsOver(dd) and not MouseIsOver(menu) and not MouseIsOver(arrowFrame) then
+            menu:Hide()
+            if CCS.ActiveFontMenu == menu then
+                CCS.ActiveFontMenu = nil
             end
-            info.value = fontPath
-            info.func = function()
-                CCS.CurrentProfile[key] = fontPath
-                UIDropDownMenu_SetSelectedValue(dd, fontPath)
-                if def.onChange then
-                    def.onChange(fontPath)
-                end
-
-                CCS.fontname = CCS:GetDefaultFontForLocale() or CCS:GetOptionValue("default_font") or "Fonts\\FRIZQT__.TTF"
-                CCS.InitializeModules()
-
-            end
-            UIDropDownMenu_AddButton(info)
         end
+    end
+    
+    -- Auto-close when mouse leaves the menu
+    menu:SetScript("OnLeave", function() 
+                        arrowFrame:GetNormalTexture():SetTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\down-arrow.png")
+                        C_Timer.After(0.2, function() HandleLeave() end) 
+    end)
+    dd:SetScript("OnLeave", function() 
+                        arrowFrame:GetNormalTexture():SetTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\down-arrow.png")
+                        C_Timer.After(0.2, function() HandleLeave() end) 
+    end)
+    arrowFrame:SetScript("OnLeave", function() 
+                        arrowFrame:GetNormalTexture():SetTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\down-arrow.png")
+                        C_Timer.After(0.2, function() HandleLeave() end) 
     end)
 
-    -- Set initial selection
-    UIDropDownMenu_SetSelectedValue(dd, currentValue)
+    -- Optional: keep menu open while hovering
+    menu:SetScript("OnEnter", function(self)
+        -- do nothing, just prevents OnLeave firing immediately
+    end)
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, menu, "UIPanelScrollFrameTemplate, BackdropTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 4, -4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -26, 4)
+        scrollFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    scrollFrame:SetBackdropColor(0, 0, 0, 1)   
+
+    local content = CreateFrame("Frame", nil, scrollFrame)
+    scrollFrame:SetScrollChild(content)
+
+    -- Access the scrollbar
+
+    local sb = scrollFrame.ScrollBar
+    sb:ClearAllPoints()
+    sb:SetPoint("TOPRIGHT", scrollFrame, "TOPRIGHT", 15, -16)
+    sb:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT", 15, 16)
+    sb:SetWidth(30)   -- wider than default (try 20–24 for a chonkier bar)
+    sb:GetThumbTexture():SetSize(20, 24)
+    -- Resize the up/down buttons
+    sb.ScrollUpButton:SetWidth(24)
+    sb.ScrollDownButton:SetWidth(24)
+
+    -- Build sorted font list: union of CCS + LSM
+    local sortedNames = {}
+    local seen = {}
+
+    for fontName in pairs(CCS.fonts or {}) do
+        if not seen[fontName] then
+            sortedNames[#sortedNames+1] = fontName
+            seen[fontName] = true
+        end
+    end
+    if LSM and LSM.List then
+        for _, fontName in ipairs(LSM:List("font")) do
+            if not seen[fontName] then
+                sortedNames[#sortedNames+1] = fontName
+                seen[fontName] = true
+            end
+        end
+    end
+
+    table.sort(sortedNames, function(a, b)
+        local la = CCS.fontLabels[a] and CCS.fontLabels[a][locale] or a
+        local lb = CCS.fontLabels[b] and CCS.fontLabels[b][locale] or b
+        return la < lb
+    end)
+
+    local function BuildMenu()
+        -- Clear old children
+        local children = { content:GetChildren() }
+        for _, child in ipairs(children) do
+            child:Hide()
+            child:SetParent(nil)
+        end
+
+        local count = 0
+        for _, fontName in ipairs(sortedNames) do
+            local fontPath = (LSM and LSM:Fetch("font", fontName, true)) or (CCS.fonts and CCS.fonts[fontName])
+            if fontPath then
+                count = count + 1
+                local displayName = (CCS.fontLabels[fontName] and CCS.fontLabels[fontName][locale]) or fontName
+
+                local btn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+                btn:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
+                btn:SetPoint("TOPLEFT", 0, -(count-1)*BUTTON_HEIGHT)
+                btn:SetText(displayName)
+
+                btn.Left:Hide()
+                btn.Middle:Hide()
+                btn.Right:Hide()
+                btn:GetHighlightTexture():SetTexture("Interface\\Masks\\SquareMask.BLP")
+                btn:GetHighlightTexture():SetVertexColor(0.3, 0.1, 0.4, 1) -- Neonneon purple with transparency
+                
+                -- Left-justify and resize the text
+                local fs = btn:GetFontString()
+                if fs then
+                    fs:ClearAllPoints()
+                    fs:SetPoint("LEFT", btn, "LEFT", 6, 0)   -- anchor to the left edge with padding
+                    fs:SetJustifyH("LEFT")                  -- horizontal justification
+                    fs:SetFont(CCS:GetDefaultFontForLocale(), 14, "OUTLINE") -- adjust size and style
+                    fs:SetTextColor(1, 1, 1, 1)
+                end
+
+                btn:SetScript("OnClick", function()
+                    dd:SetSelectedValue(fontPath) -- Let the shim handle label resolution
+                    menu:Hide()
+                    if def.onChange then def.onChange(fontPath) end
+                    CCS.fontname = CCS:GetDefaultFontForLocale() or CCS:GetOptionValue("default_font") or "Fonts\\FRIZQT__.TTF"
+                    CCS.InitializeModules()
+                end)
+            end
+        end
+
+        content:SetSize(BUTTON_WIDTH, count * BUTTON_HEIGHT)
+    end
+
+    BuildMenu()
+
+    -- Toggle menu
+    dd:SetScript("OnClick", function()
+        if menu:IsShown() then
+            menu:Hide()
+            CCS.ActiveFontMenu = nil
+
+        else
+            if CCS.ActiveFontMenu and CCS.ActiveFontMenu ~= menu then
+                CCS.ActiveFontMenu:Hide()
+            end
+            CCS.ActiveFontMenu = menu   -- record the active menu
+            -- Refresh LSM reverse map on open (catch fonts registered late)
+            BuildLSMReverseMap()
+            menu:Show()
+        end
+    end)
+    
+    arrowFrame:SetScript("OnClick", function() dd:Click() end)
+
+    -- Initial selection text
+    dd.selectedValue = currentValue
+    local fontNameInit = ResolveFontNameFromPath(currentValue) or pathToName[currentValue] or currentValue
+    local displayInit = (CCS.fontLabels[fontNameInit] and CCS.fontLabels[fontNameInit][locale]) or fontNameInit
+    dd:SetText(type(displayInit) == "string" and displayInit or "Select font...")
+
+    -- Blizzard-like API shims
+    function dd:GetValue() return self.selectedValue end
+    function dd:SetValue(val)
+        self.selectedValue = val
+        CCS.CurrentProfile[key] = val
+
+        local fontName = ResolveFontNameFromPath(val) or pathToName[val] or val
+        local display = (CCS.fontLabels[fontName] and CCS.fontLabels[fontName][locale]) or fontName
+
+        local fs = self:GetFontString()
+        if fs then fs:SetText(display) end
+    end
+    function dd:GetSelectedValue() return self.selectedValue end
+    function dd:SetSelectedValue(val) self:SetValue(val) end
+    function dd:SetText(text)
+        local fs = self:GetFontString()
+        if fs then fs:SetText(text) end
+    end
+    function dd:GetText()
+        local fs = self:GetFontString()
+        return fs and fs:GetText() or ""
+    end
 
     return frame, dd
 end
-
 
 local function newColorPicker(def, parent, rowHeight)
     local slotWidth = (def.slots or 2) * GlobalSlotWidth
@@ -1112,7 +1375,6 @@ frame:SetScript("OnShow", function(self)
     self.optionsLoaded = true
     self:SetScale(option("optionsheetscale") or 1)
 
-
     -- Ensure profile exists
     CCS.CurrentProfile = CCS.CurrentProfile or (function()
         local charKey = CCS:GetProfileName()
@@ -1129,17 +1391,35 @@ frame:SetScript("OnShow", function(self)
     -- Control creators & default heights
     local controlCreators = {
         header = newHeader,
+        button = newButton,
         divider = newDivider,
         checkbox = newCheckbox,
         dropdown = newDropdown,
         slider = newSlider,
-        font = newFontSelector,
+        font = newFontSelector,  -- custom scroll dropdown
         color = newColorPicker,
     }
     local controlHeights = {
         header = 30, divider = 10, checkbox = 45, dropdown = 45,
         slider = 45, font = 45, color = 45
     }
+
+    -- Dispatch wrappers: use your control methods if present
+    local function CCS_DD_SetSelectedValue(frame, value)
+        if frame and frame.isCCSScrollDropdown and frame.SetSelectedValue then
+            frame:SetSelectedValue(value)
+        else
+            UIDropDownMenu_SetSelectedValue(frame, value)
+        end
+    end
+
+    local function CCS_DD_SetText(frame, text)
+        if frame and frame.isCCSScrollDropdown and frame.SetText then
+            frame:SetText(text)
+        else
+            UIDropDownMenu_SetText(frame, text)
+        end
+    end
 
     -- Layout state per category
     local layoutState = {}
@@ -1152,7 +1432,6 @@ frame:SetScript("OnShow", function(self)
         }
     end
 
-    -- Row placement per category
     local function placeRow(cat)
         local state = layoutState[cat]
         if #state.rowControls == 0 then return end
@@ -1174,28 +1453,32 @@ frame:SetScript("OnShow", function(self)
         if def.ver and bit.band(def.ver, currentVersion) == 0 then
             -- skip this option
         else
-            if def.cat == "IGNORE" then -- Check to see if these are option frame options so we handle them differently.
+            if def.cat == "IGNORE" then
                 local frameContainer, ctrlWidget = controlCreators[def.type](def, _G["CCS_Options"], 12)
                 def.container = frameContainer
                 def.frame = ctrlWidget or frameContainer
-                
+
+                -- Mark custom font dropdown
+                if def.type == "font" and def.frame then
+                    def.frame.isCCSScrollDropdown = true
+                end
+
                 if def.key == "optionsheetscale" then
                     def.frame:SetPoint("TOPRIGHT", _G["CCS_Options"], "TOPRIGHT", -25, -3)
                     def.frame:Show()
                 elseif def.key == "globalprofile" then
-                                def.frame:SetPoint("TOPLEFT", _G["CCS_DeleteProfileDropdown"], "BOTTOMLEFT", 0, -2)
-                                def.frame.Text:SetFont(CCS:GetDefaultFontForLocale(), 10, "OUTLINE")
-                    def.frame:Show()            
+                    def.frame:SetPoint("TOPLEFT", _G["CCS_DeleteProfileDropdown"], "BOTTOMLEFT", 0, -2)
+                    def.frame.Text:SetFont(CCS:GetDefaultFontForLocale(), 10, "OUTLINE")
+                    def.frame:Show()
                 end
-                
-            else -- otherwise, create a normal option control.
+            else
                 local cat = (def.cat and categoryScrollChildren[def.cat]) and def.cat or "GENERAL"
                 local state = layoutState[cat]
                 local scrollChild = state.scrollChild
                 local wSlots = def.slots or 1
                 local controlHeight = controlHeights[def.type] or 50
 
-                if def.type == "header" or def.type == "divider" or state.currentX + wSlots > maxSlots then
+                if (def.type == "header" and def.slots == 4) or (def.type == "divider" and def.slots == 4) or state.currentX + wSlots > maxSlots then
                     placeRow(cat)
                 end
 
@@ -1203,16 +1486,20 @@ frame:SetScript("OnShow", function(self)
                 local frameContainer, ctrlWidget = controlCreators[def.type](def, scrollChild, controlHeight)
                 def.container = frameContainer
 
-                -- Explicitly handle dropdown/font so def.frame is the actual widget
+                -- For dropdown/font, ensure def.frame is the actual interactive widget
                 if def.type == "dropdown" or def.type == "font" then
                     def.frame = ctrlWidget or frameContainer.dropdown or frameContainer
                 else
                     def.frame = ctrlWidget or frameContainer
                 end
 
+                -- Mark custom font dropdown
+                if def.type == "font" and def.frame then
+                    def.frame.isCCSScrollDropdown = true
+                end
+
                 -- Load value from profile
                 local value = (CCS.CurrentProfile[def.key] == nil) and def.default or CCS.CurrentProfile[def.key]
-
                 if type(def.default) == "table" then
                     local defaultTbl = def.default
                     local savedTbl = type(value) == "table" and value or {}
@@ -1237,11 +1524,27 @@ frame:SetScript("OnShow", function(self)
                 if def.type == "slider" and ctrlWidget and ctrlWidget.updateThumbPosition then
                     local numVal = tonumber(string.format("%.2f", tonumber(value) or 0))
                     ctrlWidget.updateThumbPosition(numVal)
+
                 elseif def.type == "checkbox" and def.frame.SetChecked then
                     def.frame:SetChecked(CCS.CurrentProfile[def.key] == true)
-                elseif (def.type == "dropdown" or def.type == "font") and def.frame.SetSelectedValue then
-                    UIDropDownMenu_SetSelectedValue(def.frame, value)
-                    UIDropDownMenu_SetText(def.frame, value)
+
+                elseif def.type == "dropdown" or def.type == "font" then
+                    -- For font dropdowns, value is a font path; compute display name
+                    local display = value
+                    if def.type == "font" then
+                        local name = CCS.fonts and CCS.fonts[value] and value or (CCS.fonts and next(CCS.fonts)) -- safety
+                        local pathToName = CCS.fonts and (function()
+                            local t = {}
+                            for n, p in pairs(CCS.fonts) do t[p] = n end
+                            return t
+                        end)() or {}
+                        local fontName = pathToName[value] or value
+                        display = (CCS.fontLabels and CCS.fontLabels[fontName] and CCS.fontLabels[fontName][GetLocale()]) or fontName
+                    end
+
+                    CCS_DD_SetSelectedValue(def.frame, value)   -- routes to custom or Blizzard
+                    CCS_DD_SetText(def.frame, display)
+
                 elseif def.type == "color" and def.frame.texture and type(value) == "table" then
                     def.frame.texture:SetColorTexture(value[1], value[2], value[3], value[4] or 1)
                 end
@@ -1257,7 +1560,6 @@ frame:SetScript("OnShow", function(self)
                     placeRow(cat)
                 end
             end
-
         end
     end
 
@@ -1270,6 +1572,7 @@ frame:SetScript("OnShow", function(self)
     CCS:RefreshOptionsUI()
     UpdateScrollbarVisibility(scrollFrame)
 end)
+
 
 frame:SetScript("OnHide", function(self)
     if not ns.optionDefs or not CCS.CurrentProfile then return end
@@ -1298,16 +1601,21 @@ frame:SetScript("OnHide", function(self)
 
             elseif def.type == "dropdown" or def.type == "font" then
                 if def.frame then
-                    local val = UIDropDownMenu_GetSelectedValue(def.frame)
+                    local val
+                    if def.frame.isCCSScrollDropdown and def.frame.GetSelectedValue then
+                        -- custom scroll dropdown: use its method
+                        val = def.frame:GetSelectedValue()
+                    else
+                        -- native Blizzard dropdown
+                        val = UIDropDownMenu_GetSelectedValue(def.frame)
+                    end
                     currentValue = val ~= nil and val or def.default
-
                 else
                     currentValue = def.value ~= nil and def.value or def.default
                 end
 
             elseif def.type == "color" then
                 currentValue = CCS.CurrentProfile[def.key] or {1, 1, 1, 1}
-
                 for i = 1, 4 do
                     if not currentValue[i] then
                         currentValue[i] = (i == 4) and 1 or 1
@@ -1328,9 +1636,10 @@ frame:SetScript("OnHide", function(self)
             CCS:UpdateOption(def, currentValue)
         end
     end
-        if _G["ccsrf_sf"] ~= nil then
-            ccsrf_sf:Hide()
-        end
+
+    if _G["ccsrf_sf"] ~= nil then
+        ccsrf_sf:Hide()
+    end
 end)
 
 -- Launcher frame for Blizzard Option AddOns panel
